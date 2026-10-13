@@ -1,0 +1,84 @@
+From: Amir Mazor <mazora@marvell.com>
+Date: Tue, 13 Oct 2026 16:31:00 +0300
+Subject: [PATCH] mmc: sdhci-xenon: apply the 34-bit DMA mask for AC5 before adding the host
+
+AC5 xenon needs a 34-bit DMA mask because DDR starts at offset 8 GB (see
+"mmc: xenon: Add ac5 support via bounce buffer"), but the mask must be applied
+before the host is added.
+
+Provide a set_dma_mask() sdhci op for xenon: clear SDHCI_USE_64_BIT_DMA when
+SDHCI_QUIRK2_BROKEN_64_BIT_DMA is set and, for XENON_AC5, set a 34-bit DMA mask
+on the mmc device.
+
+Signed-off-by: Amir Mazor <mazora@marvell.com>
+---
+diff --git a/drivers/mmc/host/sdhci-xenon.c b/drivers/mmc/host/sdhci-xenon.c
+--- a/drivers/mmc/host/sdhci-xenon.c
++++ b/drivers/mmc/host/sdhci-xenon.c
+@@ -255,6 +255,32 @@
+ 		return pltfm_host->clock;
+ }
+ 
++static int xenon_set_dma_mask(struct sdhci_host *host)
++{
++	struct sdhci_pltfm_host *pltfm_host;
++	struct xenon_priv *priv;
++	struct mmc_host *mmc;
++	int ret = 0;
++
++	pltfm_host = sdhci_priv(host);
++	priv = sdhci_pltfm_priv(pltfm_host);
++	mmc = host->mmc;
++
++	pr_err("xenon_set_dma_mask: hwver %x quirks2 %x\n",
++		priv->hw_version, host->quirks2);
++
++	if (host->quirks2 & SDHCI_QUIRK2_BROKEN_64_BIT_DMA)
++		host->flags &= ~SDHCI_USE_64_BIT_DMA;
++
++	if (priv->hw_version == XENON_AC5 &&
++		host->quirks2 & SDHCI_QUIRK2_BROKEN_64_BIT_DMA) {
++			pr_err("xenon_set_dma_mask: setting mask to 34 bits\n");
++			ret = dma_set_mask(mmc_dev(mmc), DMA_BIT_MASK(34));
++		}
++
++	return ret;
++}
++
+ static const struct sdhci_ops sdhci_xenon_ops = {
+ 	.voltage_switch		= xenon_voltage_switch,
+ 	.set_clock		= sdhci_set_clock,
+@@ -263,6 +289,7 @@
+ 	.reset			= xenon_reset,
+ 	.set_uhs_signaling	= xenon_set_uhs_signaling,
+ 	.get_max_clock		= xenon_get_max_clock,
++	.set_dma_mask		= xenon_set_dma_mask,
+ };
+ 
+ static const struct sdhci_pltfm_data sdhci_xenon_pdata = {
+@@ -577,6 +604,16 @@
+ 	pm_runtime_enable(&pdev->dev);
+ 	pm_suspend_ignore_children(&pdev->dev, 1);
+ 
++	/*
++	 * If we previously detected AC5 with over 2GB of memory,
++	 * then we disable ADMA and 64-bit DMA.
++	 * This means generic SDHCI driver has set the DMA mask to
++	 * 32-bit. Since DDR starts at 0x2_0000_0000, we must use
++	 * 34-bit DMA mask to access this DDR memory:
++	 */
++	if (priv->hw_version == XENON_AC5 &&
++	    host->quirks2 & SDHCI_QUIRK2_BROKEN_64_BIT_DMA)
++		dma_set_mask(&pdev->dev, DMA_BIT_MASK(34));
+ 	err = sdhci_add_host(host);
+ 	if (err)
+ 		goto remove_sdhc;
+@@ -591,7 +628,7 @@
+ 	 */
+ 	if (priv->hw_version == XENON_AC5 &&
+ 	    host->quirks2 & SDHCI_QUIRK2_BROKEN_64_BIT_DMA)
+-		dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(34));
++		dma_set_mask(&pdev->dev, DMA_BIT_MASK(34));
+ 
+ 	return 0;
+ 

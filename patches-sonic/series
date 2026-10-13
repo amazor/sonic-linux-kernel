@@ -172,6 +172,8 @@ cisco-npu-disable-other-bars.patch
 0019-irqchip-mvebu-gicp-Clear-pending-interrupts-on-init.patch
 0022-arm64-dts-marvell-Add-DTS-for-cn9131-db-comexpress-trixie.patch
 0023-armhf-armada38x-disable-HW-UIE.patch
+0024-arm64-dts-ac5-rd-map-4GiB-DRAM-for-mmc-dma.patch
+0025-mmc-sdhci-xenon-set-34-bit-DMA-mask-for-AC5.patch
 
 # amd-pensando elba support
 0001-Add-support-for-the-TI-TPS53659.patch

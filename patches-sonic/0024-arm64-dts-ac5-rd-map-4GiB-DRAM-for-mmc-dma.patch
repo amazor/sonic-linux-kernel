@@ -1,0 +1,27 @@
+From: Amir Mazor <mazora@marvell.com>
+Date: Tue, 13 Oct 2026 16:30:00 +0300
+Subject: [PATCH] arm64: dts: ac5: rd: map the full 4 GiB DRAM window for mmc DMA
+
+On AC5X the DDR is mapped at offset 8 GB (0x2_0000_0000) and the xenon eMMC
+controller addresses it with a 34-bit DMA mask (see "mmc: xenon: Add ac5
+support via bounce buffer"). On RD boards with more than 2 GB of DRAM the
+eMMC enumerates as 0 B and the board never finds its root filesystem.
+
+Add a dma-ranges property to the &mmc_dma node of ac5-98dx35xx-rd.dts that
+maps the 4 GiB DRAM window at 0x2_0000_0000 one-to-one for the mmc DMA master.
+
+Signed-off-by: Amir Mazor <mazora@marvell.com>
+---
+diff --git a/arch/arm64/boot/dts/marvell/ac5-98dx35xx-rd.dts b/arch/arm64/boot/dts/marvell/ac5-98dx35xx-rd.dts
+--- a/arch/arm64/boot/dts/marvell/ac5-98dx35xx-rd.dts
++++ b/arch/arm64/boot/dts/marvell/ac5-98dx35xx-rd.dts
+@@ -111,3 +111,9 @@
+ 		status = "okay";
+ 	};
+ };
++
++&mmc_dma {
++        /* Host phy ram DMA mapping */
++        dma-ranges = <0x2 0x0 0x2 0x0000000 0x1 0x0>;
++};
++
